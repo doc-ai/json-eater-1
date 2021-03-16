@@ -1,0 +1,21 @@
+from setuptools import setup
+from setuptools_rust import RustExtension
+
+
+setup(
+    name="json-eater",
+    version="0.0.2",
+    classifiers=[
+        "License :: OSI Approved :: MIT License",
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "Programming Language :: Python",
+        "Programming Language :: Rust",
+        "Operating System :: POSIX",
+        "Operating System :: MacOS :: MacOS X",
+    ],
+    packages=["json_eater"],
+    rust_extensions=[RustExtension("json_eater.json_eater", "Cargo.toml", debug=False)],
+    include_package_data=True,
+    zip_safe=False,
+)
