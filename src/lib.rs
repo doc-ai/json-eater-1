@@ -2,7 +2,7 @@
 use serde_json::{Value};
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
-
+use rayon::prelude::*;
 
 
 fn deep_keys(value: &Value, current_path: Vec<String>, output: &mut Vec<Vec<String>>) {
