@@ -4,11 +4,11 @@ use serde::{Serialize, Deserialize};
 use serde_json::{Value};
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
+#[allow(unused_imports)]
 use rayon::prelude::*;
 
-use std::collections::HashMap;
 
-use pythonize::{depythonize, pythonize};
+use pythonize::{pythonize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Sample {
@@ -77,49 +77,6 @@ impl Sample {
     }
 }
 
-
-fn deep_keys(value: &Value, current_path: Vec<String>, output: &mut Vec<Vec<String>>) {
-    if current_path.len() > 0 {
-        output.push(current_path.clone());
-    }
-
-    match value {
-        Value::Object(map) => {
-            for (k, v) in map {
-                let mut new_path = current_path.clone();
-                new_path.push(k.to_owned());
-                deep_keys(v,  new_path, output);
-
-            }
-        },
-        Value::Array(array) => {
-            for (i, v) in array.iter().enumerate() {
-                let mut new_path = current_path.clone();
-                new_path.push(i.to_string().to_owned());
-                deep_keys(v,  new_path, output);
-            }
-        },
-        Value::Number(number) => {
-            if number.is_i64(){
-
-            } else if number.is_i64(){
-
-            } else {
-                
-            }
-            
-            return ()
-        },
-        Value::String(string) => {
-            
-            return ()
-        },
-        Value::Bool(boolean) => {
-            return ()
-        },
-        _ => ()
-    }
-}
 
 
 
@@ -197,18 +154,11 @@ fn deep_keys_v(py: Python, value: &Value, current_path: Vec<String>, output: &mu
     }
 }
 
-#[pyfunction]
-fn eat(data: &str) -> Vec<Vec<String>> {
-    let mut output = vec![vec![]];
-    let current_path = vec![];
-    let value:Value = serde_json::from_str(data).expect("error");
-    deep_keys(&value, current_path, &mut output);
-    return output
-}
+
 
 
 #[pyfunction]
-fn test(data: &str) -> Vec<pyo3::Py<pyo3::PyAny>> {
+fn eat(data: &str) -> Vec<pyo3::Py<pyo3::PyAny>> {
 
     let gil = Python::acquire_gil();
     let py = gil.python();
@@ -225,7 +175,7 @@ fn test(data: &str) -> Vec<pyo3::Py<pyo3::PyAny>> {
 
 #[pymodule]
 fn json_eater(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+
     m.add_function(wrap_pyfunction!(eat, m)?)?;
-    m.add_function(wrap_pyfunction!(test, m)?)?;
     Ok(())
 }
