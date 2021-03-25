@@ -158,14 +158,30 @@ fn deep_keys_v(py: Python, value: &Value, current_path: Vec<String>, output: &mu
 
 
 #[pyfunction]
-fn eat(data: &str) -> Vec<pyo3::Py<pyo3::PyAny>> {
+fn eat(data: &str, target_json_path: Option<String>, is_str_json: Option<bool>) -> Vec<pyo3::Py<pyo3::PyAny>> {
 
     let gil = Python::acquire_gil();
     let py = gil.python();
     let mut output: Vec<pyo3::Py<pyo3::PyAny>> = vec![];
 
     let current_path = vec![];
-    let value:Value = serde_json::from_str(data).expect("error");
+    let mut value:Value = serde_json::from_str(data).expect("error");
+    match target_json_path {
+        None => (),
+        Some(path) => {
+            let target_value = value.pointer(path.as_str()).unwrap();
+            match is_str_json {
+                None => (),
+                Some(is_str_json) => {
+                    // If true we have to reparse this string 
+                    if is_str_json {
+                        value = serde_json::from_str(target_value.as_str().unwrap())
+                                .expect("Invalid json_pointer target is not a json string");
+                    }
+                }
+            }
+        }
+    }
     deep_keys_v(py, &value, current_path, &mut output);
     
     return output
