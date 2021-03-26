@@ -1,7 +1,10 @@
 use pyo3::prelude::*;
+#[allow(unused_imports)]
+use pyo3::types::*;
 use pyo3::wrap_pyfunction;
 #[allow(unused_imports)]
 use rayon::prelude::*;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -61,10 +64,57 @@ impl Sample {
     }
 }
 
+fn merge_headers(py: Python, headers: Value, sample: pyo3::Py<pyo3::PyAny>) -> Py<PyAny> {
+    let any: &PyAny = sample.into_ref(py);
+
+    if headers.is_object() {
+        for (k, v) in headers.as_object().unwrap() {
+            match v {
+                Value::Number(number) => {
+                    if number.is_i64() {
+                        any.set_item(k, number.as_i64()).unwrap();
+                    } else if number.is_f64() {
+                        any.set_item(k, number.as_f64()).unwrap();
+                    } else if number.is_u64() {
+                        any.set_item(k, number.as_u64()).unwrap();
+                    }
+                }
+                Value::Bool(boolean) => {
+                    any.set_item(k, boolean).unwrap();
+                }
+                Value::String(string) => {
+                    any.set_item(k, string).unwrap();
+                }
+                _ => {}
+            }
+        }
+    }
+    any.set_item(String::from("Test"), String::from("hi"))
+        .unwrap();
+    let any: Py<PyAny> = Py::from(any);
+
+    return any;
+}
+
+fn save_sample(
+    py: Python,
+    sample: &Sample,
+    headers: Value,
+    output: &mut Vec<pyo3::Py<pyo3::PyAny>>,
+) {
+    let sample = pythonize(py, sample).unwrap();
+    if headers.is_object() {
+        let any = merge_headers(py, headers, sample.clone());
+        output.push(any);
+    }
+    output.push(sample);
+}
+
 fn deep_keys_v(
     py: Python,
     value: &Value,
     current_path: Vec<String>,
+    headers: Value,
     output: &mut Vec<pyo3::Py<pyo3::PyAny>>,
 ) {
     // if current_path.len() > 0 {
@@ -76,30 +126,27 @@ fn deep_keys_v(
             for (k, v) in map {
                 let mut new_path = current_path.clone();
                 new_path.push(k.to_owned());
-                deep_keys_v(py, v, new_path, output);
+                deep_keys_v(py, v, new_path, headers.clone(), output);
             }
         }
         Value::Array(array) => {
             for (i, v) in array.iter().enumerate() {
                 let mut new_path = current_path.clone();
                 new_path.push(i.to_string().to_owned());
-                deep_keys_v(py, v, new_path, output);
+                deep_keys_v(py, v, new_path, headers.clone(), output);
             }
         }
         Value::Number(number) => {
             let sample = Sample::default();
             if number.is_i64() {
                 let sample = sample.with_path(current_path).with_vint(number.as_i64());
-                let sample = pythonize(py, &sample).unwrap();
-                output.push(sample);
+                save_sample(py, &sample, headers, output);
             } else if number.is_u64() {
                 let sample = sample.with_path(current_path).with_vuint(number.as_u64());
-                let sample = pythonize(py, &sample).unwrap();
-                output.push(sample);
+                save_sample(py, &sample, headers, output);
             } else if number.is_f64() {
                 let sample = sample.with_path(current_path).with_vfloat(number.as_f64());
-                let sample = pythonize(py, &sample).unwrap();
-                output.push(sample);
+                save_sample(py, &sample, headers, output);
             }
 
             return ();
@@ -108,8 +155,7 @@ fn deep_keys_v(
             let sample = Sample::default()
                 .with_path(current_path)
                 .with_vstr(Some(String::from(string)));
-            let sample = pythonize(py, &sample).unwrap();
-            output.push(sample);
+            save_sample(py, &sample, headers, output);
 
             return ();
         }
@@ -123,8 +169,7 @@ fn deep_keys_v(
             let sample = Sample::default()
                 .with_path(current_path)
                 .with_vbool(Some(v));
-            let sample = pythonize(py, &sample).unwrap();
-            output.push(sample);
+            save_sample(py, &sample, headers, output);
             return ();
         }
         _ => (),
@@ -149,31 +194,29 @@ fn eat(
         Some(is_records) => is_records,
     };
 
-    println!("IS RECORDS={} at {:?}", is_records, target_json_path);
-
+    // if is_records we should also copy over headers to the sample?
     match target_json_path {
         None => {
             if is_records && value.is_array() {
                 // Make sure value is an array
                 for (_i, v) in value.as_array().unwrap().iter().enumerate() {
                     let current_path = vec![String::from("$root")];
-                    deep_keys_v(py, v, current_path, &mut output);
+                    deep_keys_v(py, v, current_path, Value::Null, &mut output);
                 }
                 // Iterate through
             }
 
-            deep_keys_v(py, &value, current_path, &mut output);
+            deep_keys_v(py, &value, current_path, Value::Null, &mut output);
         }
         Some(path) => {
             if is_records && value.is_array() {
-                
                 // Make sure value is an array
                 for (_i, v) in value.as_array().unwrap().iter().enumerate() {
                     let target_value = v.pointer(path.as_str());
                     match target_value {
                         Some(target_value) => {
                             let current_path = vec![String::from("$root")];
-                            deep_keys_v(py, target_value, current_path, &mut output);
+                            deep_keys_v(py, target_value, current_path, Value::Null, &mut output);
                         }
                         None => {
                             println!("No path found for[{}] {:?}", _i, path.as_str());
@@ -181,13 +224,13 @@ fn eat(
                         }
                     }
                 }
-                // Iterate through
+            // Iterate through
             } else {
                 let target_value = value.pointer(path.as_str()).unwrap();
 
                 match is_str_json {
                     None => {
-                        deep_keys_v(py, &target_value, current_path, &mut output);
+                        deep_keys_v(py, &target_value, current_path, Value::Null, &mut output);
                     }
                     Some(is_str_json) => {
                         // If true we have to reparse this string
@@ -195,9 +238,9 @@ fn eat(
                             let v = serde_json::from_str(target_value.as_str().unwrap())
                                 .expect("Invalid json_pointer target is not a json string");
 
-                            deep_keys_v(py, &v, current_path, &mut output);
+                            deep_keys_v(py, &v, current_path, Value::Null, &mut output);
                         } else {
-                            deep_keys_v(py, &target_value, current_path, &mut output);
+                            deep_keys_v(py, &target_value, current_path, Value::Null, &mut output);
                         }
                     }
                 }
