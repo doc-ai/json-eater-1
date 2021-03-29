@@ -5,8 +5,9 @@ use pyo3::wrap_pyfunction;
 #[allow(unused_imports)]
 use rayon::prelude::*;
 
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use pythonize::pythonize;
 
@@ -89,8 +90,7 @@ fn merge_headers(py: Python, headers: Value, sample: pyo3::Py<pyo3::PyAny>) -> P
             }
         }
     }
-    any.set_item(String::from("Test"), String::from("hi"))
-        .unwrap();
+
     let any: Py<PyAny> = Py::from(any);
 
     return any;
@@ -106,8 +106,9 @@ fn save_sample(
     if headers.is_object() {
         let any = merge_headers(py, headers, sample.clone());
         output.push(any);
+    } else {
+        output.push(sample);
     }
-    output.push(sample);
 }
 
 fn deep_keys_v(
@@ -117,9 +118,6 @@ fn deep_keys_v(
     headers: Value,
     output: &mut Vec<pyo3::Py<pyo3::PyAny>>,
 ) {
-    // if current_path.len() > 0 {
-    //     output.push(current_path.clone());
-    // }
 
     match value {
         Value::Object(map) => {
@@ -176,12 +174,48 @@ fn deep_keys_v(
     }
 }
 
+// Extract top level leaf keys from parent of target
+fn generate_headers(
+   root: &Value,
+   header_paths: Option<HashMap<String, String>>, 
+) -> Value {
+   
+    let header_paths = match header_paths {
+        Some(hp) => hp,
+        _ => HashMap::new()
+    };
+
+    let mut header_value: Value = json!({});
+
+    let header_value: &mut serde_json::Map<std::string::String, serde_json::Value> = 
+        header_value.as_object_mut().unwrap();
+    
+    for (header_key,header_path) in header_paths {
+        let header: &Value = match root.pointer(header_path.as_str()) {
+            Some(header) => header,
+            None => &Value::Null
+        };
+
+        let header = serde_json::to_string(header).unwrap();
+        let header: Value = serde_json::from_str(header.as_str()).unwrap();
+
+        header_value.insert(header_key, header);
+        // get header name? 
+    }
+
+    let header_value = serde_json::to_value(header_value).unwrap();
+
+
+    return header_value;
+}
+
 #[pyfunction]
 fn eat(
     data: &str,
     target_json_path: Option<String>,
     is_str_json: Option<bool>,
     is_records: Option<bool>,
+    header_paths: Option<HashMap<String, String>>
 ) -> Vec<pyo3::Py<pyo3::PyAny>> {
     let gil = Python::acquire_gil();
     let py = gil.python();
@@ -194,29 +228,36 @@ fn eat(
         Some(is_records) => is_records,
     };
 
+    let headers: Value = Value::Null;
+
     // if is_records we should also copy over headers to the sample?
     match target_json_path {
         None => {
             if is_records && value.is_array() {
                 // Make sure value is an array
                 for (_i, v) in value.as_array().unwrap().iter().enumerate() {
+                    
+                    let headers = generate_headers(&v, header_paths.clone());
                     let current_path = vec![String::from("$root")];
-                    deep_keys_v(py, v, current_path, Value::Null, &mut output);
+                    deep_keys_v(py, v, current_path, headers.clone(), &mut output);
                 }
                 // Iterate through
             }
 
-            deep_keys_v(py, &value, current_path, Value::Null, &mut output);
+            deep_keys_v(py, &value, current_path, headers.clone(), &mut output);
         }
         Some(path) => {
             if is_records && value.is_array() {
                 // Make sure value is an array
+
                 for (_i, v) in value.as_array().unwrap().iter().enumerate() {
+
+                    let headers = generate_headers(&v, header_paths.clone());
                     let target_value = v.pointer(path.as_str());
                     match target_value {
                         Some(target_value) => {
                             let current_path = vec![String::from("$root")];
-                            deep_keys_v(py, target_value, current_path, Value::Null, &mut output);
+                            deep_keys_v(py, target_value, current_path, headers.clone(), &mut output);
                         }
                         None => {
                             println!("No path found for[{}] {:?}", _i, path.as_str());
@@ -230,7 +271,7 @@ fn eat(
 
                 match is_str_json {
                     None => {
-                        deep_keys_v(py, &target_value, current_path, Value::Null, &mut output);
+                        deep_keys_v(py, &target_value, current_path, headers.clone(), &mut output);
                     }
                     Some(is_str_json) => {
                         // If true we have to reparse this string
@@ -238,9 +279,9 @@ fn eat(
                             let v = serde_json::from_str(target_value.as_str().unwrap())
                                 .expect("Invalid json_pointer target is not a json string");
 
-                            deep_keys_v(py, &v, current_path, Value::Null, &mut output);
+                            deep_keys_v(py, &v, current_path, headers.clone(), &mut output);
                         } else {
-                            deep_keys_v(py, &target_value, current_path, Value::Null, &mut output);
+                            deep_keys_v(py, &target_value, current_path, headers.clone(), &mut output);
                         }
                     }
                 }
