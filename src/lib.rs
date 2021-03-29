@@ -13,7 +13,7 @@ use pythonize::pythonize;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Sample {
-    path: Vec<String>,
+    path: String,
     vuint: Option<u64>,
     vint: Option<i64>,
     vfloat: Option<f64>,
@@ -24,7 +24,7 @@ struct Sample {
 impl Sample {
     pub fn new() -> Self {
         Sample {
-            path: vec![String::from("$root")],
+            path: String::from("$root"),
             vuint: None,
             vint: None,
             vfloat: None,
@@ -39,7 +39,7 @@ impl Sample {
 
     pub fn with_path(self, path: Vec<String>) -> Self {
         Sample {
-            path: path.clone(),
+            path: path.clone().join("/"),
             ..self
         }
     }
