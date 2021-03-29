@@ -121,6 +121,12 @@ fn deep_keys_v(
 
     match value {
         Value::Object(map) => {
+
+            if map.values().len() == 0 {
+                let sample = Sample::default();
+                let sample = sample.with_path(current_path.clone());
+                save_sample(py, &sample, headers.clone(), output);
+            }
             for (k, v) in map {
                 let mut new_path = current_path.clone();
                 new_path.push(k.to_owned());
@@ -128,6 +134,11 @@ fn deep_keys_v(
             }
         }
         Value::Array(array) => {
+            if array.len() == 0 {
+                let sample = Sample::default();
+                let sample = sample.with_path(current_path.clone());
+                save_sample(py, &sample, headers.clone(), output);
+            }
             for (i, v) in array.iter().enumerate() {
                 let mut new_path = current_path.clone();
                 new_path.push(i.to_string().to_owned());
@@ -251,7 +262,7 @@ fn eat(
                 // Make sure value is an array
 
                 for (_i, v) in value.as_array().unwrap().iter().enumerate() {
-
+                    
                     let headers = generate_headers(&v, header_paths.clone());
                     let target_value = v.pointer(path.as_str());
                     match target_value {
