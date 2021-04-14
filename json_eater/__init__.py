@@ -1,6 +1,7 @@
-from .json_eater import eat
+from .json_eater import eat, pq_eat
 
 __all__ = [
-    "eat"
+    "eat",
+    "pq_eat"
 ]
 

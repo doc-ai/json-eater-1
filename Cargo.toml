@@ -8,6 +8,7 @@ edition = "2018"
 
 
 [dependencies]
+parquet = "3.0.0"
 pyo3 = { version = "0.13.2" , features = ["extension-module"] }
 pythonize = "0.13.0"
 rayon = "1.5.0"
