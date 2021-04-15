@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use pythonize::pythonize;
 
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Sample {
     path: String,
     vuint: Option<u64>,
@@ -46,6 +46,13 @@ impl Sample {
 
     pub fn default() -> Self {
         Sample::new()
+    }
+
+    pub fn to_value(self) -> Value {
+        match serde_json::value::to_value(self) {
+            Ok(v) => v,
+            _ => Value::default()
+        }
     }
 
     pub fn with_path(self, path: Vec<String>) -> Self {
