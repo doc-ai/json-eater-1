@@ -163,10 +163,11 @@ fn merge_headers(sample: &mut Value,headers: &Value) {
                 Value::Object(header_obj) => {
                     for (k, v) in header_obj {
                         // Copy over keys. 
+                        let mut key = String::from(k);
                         if sample_obj.contains_key(k) {
-                            let k = format!("{}_{}", k, "from_header");
+                            key = format!("{}_{}", key.to_owned(), "from_header");
                         } 
-                            sample_obj.insert(String::from(k), v.clone());
+                            sample_obj.insert(String::from(key), v.clone());
                         
                     }
                 },
@@ -210,7 +211,7 @@ pub fn deep_write(schema: Schema, value: &Value, current_path: Vec<String>, head
             for (k, v) in map {
                 let mut new_path = current_path.clone();
                 new_path.push(k.to_owned());
-               deep_write(schema.clone(), v, new_path, headers.clone(), _data)
+                deep_write(schema.clone(), v, new_path, headers.clone(), _data)
             }
         }
         Value::Array(array) => {
@@ -266,37 +267,6 @@ pub fn deep_write(schema: Schema, value: &Value, current_path: Vec<String>, head
     }
 }
 
-fn pq_eat(data: &str, target_json_path: Option<String>,
-    is_str_json: Option<bool>,
-    is_records: Option<bool>,
-    header_paths: Option<HashMap<String, String>>, loc: Option<&str>) {
-
-    let current_path = vec![];
-    let value: Value = serde_json::from_str(data).expect("error");
-    let is_records: bool = match is_records {
-        None => false,
-        Some(is_records) => is_records,
-    };
-
-    let headers: Value = Value::Null;
-
-    let mut _data: HashMap<String, Vec<Value>> = HashMap::new();
-
-    let schema_obj = Schema::from_value(value);
-
-    let loc: &str = match loc {
-        Some(l) => l,
-        None => "./"
-    };
-
-    let value: &mut std::vec::Vec<serde_json::Value> = _data.get_mut(&String::from("a")).unwrap();
-    value.push(json!({"a": 1}));
-
-    let message_type = Schema::from_value(json!({"a": 1}));
-
-    write_to_file(loc, schema_obj, _data);
-
-}
 
 fn write_to_file(loc: &str,  message_type: Schema, mut _data: HashMap<String, Vec<Value>>) {
 
@@ -349,4 +319,42 @@ fn write_to_file(loc: &str,  message_type: Schema, mut _data: HashMap<String, Ve
         // col_writer.
         row_group_writer.close_column(col_writer).unwrap();
     }
+}
+
+
+fn pq_eat(data: &str, 
+    target_json_path: Option<String>,
+    is_str_json: Option<bool>,
+    is_records: Option<bool>,
+    header_paths: Option<HashMap<String, String>>, loc: Option<&str>) {
+
+    let current_path = vec![];
+    let value: Value = serde_json::from_str(data).expect("error");
+    let is_records: bool = match is_records {
+        None => false,
+        Some(is_records) => is_records,
+    };
+
+    let headers: Value = Value::Null;
+
+    let mut _data: HashMap<String, Vec<Value>> = HashMap::new();
+
+
+    let headers = generate_headers(&value, header_paths);
+    let mut sample_obj = Sample::default().to_value();
+    merge_headers(&mut sample_obj, &headers);
+    let sample_schema = Schema::from_value(sample_obj);
+
+    deep_write(sample_schema.clone(), &value, current_path, headers, &mut _data);
+
+
+    let loc: &str = match loc {
+        Some(l) => l,
+        None => "./out.pq"
+    };
+
+
+
+    write_to_file(loc, sample_schema, _data);
+
 }
