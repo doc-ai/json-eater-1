@@ -5,16 +5,14 @@ use pyo3::wrap_pyfunction;
 #[allow(unused_imports)]
 use rayon::prelude::*;
 
+use serde_json::Value;
 use std::collections::HashMap;
-use serde_json::{Value};
 
 mod pq;
-use pq::{Schema, merge_headers, deep_write, write_to_file, generate_headers};
+use pq::{deep_write, generate_headers, merge_headers, write_to_file, Schema};
 
 mod sample;
 use sample::*;
-
-
 
 #[pyfunction]
 fn eat(
@@ -34,7 +32,13 @@ fn eat(
 
     let mut _data: HashMap<String, Vec<Value>> = HashMap::new();
 
-    let mut sample_obj = Sample::default().to_value();
+    let mut sample_obj = Sample::default()
+        .with_vbool(Some(true))
+        .with_vfloat(Some(0.0))
+        .with_vint(Some(0))
+        .with_vstr(Some(String::default()))
+        .with_vuint(Some(0))
+        .to_value();
     let headers = generate_headers(&value, header_paths.clone());
     merge_headers(&mut sample_obj, &headers);
     let sample_schema = Schema::from_value(sample_obj);
@@ -133,7 +137,6 @@ fn eat(
 
     write_to_file(loc, sample_schema, _data);
 }
-
 
 #[pymodule]
 fn json_eater(_py: Python<'_>, m: &PyModule) -> PyResult<()> {

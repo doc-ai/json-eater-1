@@ -70,7 +70,8 @@ impl Schema {
                         cols_map.insert(k, row_number);
                         cols.push(schema_key.clone());
                         row_number += row_number;
-                        let mut finalstr = format!("\n \trequired");
+                       
+                        let mut finalstr = format!("\n \t OPTIONAL");
                         match v {
                             Value::Number(number) => {
                                 let num_type: String;
@@ -83,7 +84,7 @@ impl Schema {
                                 } else {
                                     num_type = String::from("DOUBLE");
                                 }
-
+                                
                                 finalstr = format!("{} {} {};", finalstr, num_type, schema_key);
                             }
                             Value::String(_v_str) => {
@@ -103,6 +104,8 @@ impl Schema {
         }
         schema.push_str(&"\n}".to_owned());
 
+
+
         Schema {
             schema,
             cols,
@@ -110,6 +113,32 @@ impl Schema {
         }
     }
 }
+
+fn gen_definition_levels(data: Vec<Value>) -> Vec<i16> {
+    let mut res: Vec<i16> = vec![];
+    for v in data {
+        match v {
+            
+            Value::Null => {
+                res.push(0)
+            },
+            _ => {res.push(1)}
+        }
+    }
+    return res;
+}
+
+fn gen_rep_levels(data: Vec<Value>) -> Vec<i16> {
+    let mut res: Vec<i16> = vec![];
+    for v in data {
+        match v {
+        
+            _ => {res.push(1)}
+        }
+    }
+    return res;
+}
+
 
 fn gen_bool_slice(data: Vec<Value>) -> Vec<bool> {
     let mut res: Vec<bool> = vec![];
@@ -198,6 +227,7 @@ fn save_sample(mut sample: Value, headers: Value, _data: &mut HashMap<String, Ve
                 match _data.get_mut(&k) {
                     Some(vec_for_k) => {
                         vec_for_k.push(v);
+                        
                     }
                     _ => {
                         _data.insert(k, vec![v]);
@@ -285,7 +315,6 @@ pub fn write_to_file(loc: &str, message_type: Schema, mut _data: HashMap<String,
     let path = Path::new(loc);
 
     // Generate Schema
-
     let schema = std::sync::Arc::new(parse_message_type(message_type.schema.as_str()).unwrap());
     let props = std::sync::Arc::new(WriterProperties::builder().build());
     let file = fs::File::create(&path).unwrap();
@@ -304,22 +333,26 @@ pub fn write_to_file(loc: &str, message_type: Schema, mut _data: HashMap<String,
         let data: Vec<Value> = match _data.get(col) {
             Some(d) => d.to_vec(),
             None => vec![]
-        };
+        }; 
+
+        let def_levels = gen_definition_levels(data.clone());
+        let def_levels = &def_levels[..];
+        let rep_levels = gen_rep_levels(data.clone());
+        let rep_levels = &rep_levels[..];
 
         
         match col_writer {
             parquet::column::writer::ColumnWriter::Int64ColumnWriter(ref mut _tw) => {
                 let slice = gen_int64_slice(data);
-                _tw.write_batch(&slice, None, None).unwrap();
+                _tw.write_batch(&slice, Some(def_levels), Some(rep_levels)).unwrap();
             }
 
             parquet::column::writer::ColumnWriter::DoubleColumnWriter(ref mut _tw) => {
                 let slice = gen_f64_slice(data);
-                _tw.write_batch(&slice, None, None).unwrap();
+                _tw.write_batch(&slice, Some(def_levels), Some(rep_levels)).unwrap();
             }
             parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(ref mut _tw) => {
                 let slice = gen_utf8_slice(data);
-        
                     let buf: Vec<parquet::data_type::ByteArray> = slice.into_iter().map(|x: String| {
                             let s = x.as_str();
                             let b: &[u8] = s.as_bytes();
@@ -327,23 +360,24 @@ pub fn write_to_file(loc: &str, message_type: Schema, mut _data: HashMap<String,
                     }).collect();
 
                     _tw
-                    .write_batch(&buf[..], None, None)
+                    .write_batch(&buf[..], Some(def_levels), Some(rep_levels) )
                     .unwrap();
 
             }
             parquet::column::writer::ColumnWriter::BoolColumnWriter(ref mut _tw) => {
                 let slice = gen_bool_slice(data);
-                _tw.write_batch(&slice, None, None).unwrap();
+                _tw.write_batch(&slice, Some(def_levels), Some(rep_levels)).unwrap();
 
             
             }
             _ => {}
         }
-        println!("COL IS {}", message_type.cols[row_id]);
 
         row_id = row_id + 1;
         // col_writer.
         row_group_writer.close_column(col_writer).unwrap();
     }
+    writer.close_row_group(row_group_writer).unwrap();
+    writer.close().unwrap();
 }
 
