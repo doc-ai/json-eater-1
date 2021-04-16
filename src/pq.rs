@@ -7,14 +7,14 @@ use parquet::file::properties::WriterProperties;
 use parquet::file::writer::{FileWriter, SerializedFileWriter};
 use parquet::schema::parser::parse_message_type;
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::sample::*;
 #[derive(Debug, Clone)]
 pub struct Schema {
     pub schema: String,
     pub cols_map: HashMap<String, usize>,
-    pub cols: Vec<String>
+    pub cols: Vec<String>,
 }
 
 impl Schema {
@@ -36,176 +36,166 @@ impl Schema {
                         match v {
                             Value::Number(number) => {
                                 let mut num_type: String = String::default();
-                                    if number.is_i64() {
-                                      num_type = String::from("INT64");
-                                    } else if number.is_u64() {
-                                       num_type = String::from("INT64");
-                                      
-                                    } else if number.is_f64() {
-                                       num_type = String::from("DOUBLE");
-                                    } else {
-                                        num_type = String::from("DOUBLE");
-                                    }
-                                
-                                finalstr = format!("{} {} {};", finalstr, num_type,  schema_key);
-                 
-                            },
+                                if number.is_i64() {
+                                    num_type = String::from("INT64");
+                                } else if number.is_u64() {
+                                    num_type = String::from("INT64");
+                                } else if number.is_f64() {
+                                    num_type = String::from("DOUBLE");
+                                } else {
+                                    num_type = String::from("DOUBLE");
+                                }
+
+                                finalstr = format!("{} {} {};", finalstr, num_type, schema_key);
+                            }
                             Value::String(_v_str) => {
                                 finalstr = format!("{} BINARY {} (UTF8);", finalstr, schema_key);
-                                
-                            },
-                            Value::Bool(_boolean) => { finalstr = format!("{} BOOLEAN {};", finalstr, schema_key) },
-                            _ => ()
-
+                            }
+                            Value::Bool(_boolean) => {
+                                finalstr = format!("{} BOOLEAN {};", finalstr, schema_key)
+                            }
+                            _ => (),
                         };
-                        
-                    
-                        
-             
-                    
-                    schema.push_str(&finalstr.to_owned());
+
+                        schema.push_str(&finalstr.to_owned());
                     }
-                },
-                _=>{}
+                }
+                _ => {}
             }
-        } 
-        
+        }
         schema.push_str(&"\n}".to_owned());
 
-        Schema{
+        Schema {
             schema,
             cols,
-            cols_map
+            cols_map,
         }
     }
 }
 
-
-
-
-
-
 fn gen_bool_slice(data: Vec<Value>) -> Vec<bool> {
     let mut res: Vec<bool> = vec![];
     for v in data {
-            match v {
-                    Value::Bool(boolean) => {
-                        res.push(boolean);
-                    }
-                    _ => {}
-                }
+        match v {
+            Value::Bool(boolean) => {
+                res.push(boolean);
+            }
+            _ => {}
         }
+    }
     return res;
 }
 
 fn gen_int64_slice(data: Vec<Value>) -> Vec<i64> {
     let mut res: Vec<i64> = vec![];
     for v in data {
-            match v {
-                    Value::Number(number) => {
-                        if number.is_i64() {
-                            res.push(number.as_i64().unwrap());
-                        } 
-                    },
-                    _ => {}
+        match v {
+            Value::Number(number) => {
+                if number.is_i64() {
+                    res.push(number.as_i64().unwrap());
                 }
+            }
+            _ => {}
         }
+    }
     return res;
 }
 
 fn gen_u64_slice(data: Vec<Value>) -> Vec<u64> {
     let mut res: Vec<u64> = vec![];
     for v in data {
-            match v {
-                    Value::Number(number) => {
-                        if number.is_u64() {
-                            res.push(number.as_u64().unwrap());
-                        } 
-                    },
-                    _ => {}
+        match v {
+            Value::Number(number) => {
+                if number.is_u64() {
+                    res.push(number.as_u64().unwrap());
                 }
+            }
+            _ => {}
         }
+    }
     return res;
 }
 
 fn gen_f64_slice(data: Vec<Value>) -> Vec<f64> {
     let mut res: Vec<f64> = vec![];
     for v in data {
-            match v {
-                    Value::Number(number) => {
-                        if number.is_f64() {
-                            res.push(number.as_f64().unwrap());
-                        } 
-                    },
-                    _ => {}
+        match v {
+            Value::Number(number) => {
+                if number.is_f64() {
+                    res.push(number.as_f64().unwrap());
                 }
+            }
+            _ => {}
         }
+    }
     return res;
 }
 
 fn gen_utf8_slice(data: Vec<Value>) -> Vec<String> {
     let mut res: Vec<String> = vec![];
     for v in data {
-            match v {
-                    Value::String(string) => {
-                        res.push(string);
-                    },
-                    _ => {}
-                }
+        match v {
+            Value::String(string) => {
+                res.push(string);
+            }
+            _ => {}
         }
+    }
     return res;
 }
 
-fn merge_headers(sample: &mut Value,headers: &Value) {
+fn merge_headers(sample: &mut Value, headers: &Value) {
     match sample {
         Value::Object(sample_obj) => {
             match headers {
                 Value::Object(header_obj) => {
                     for (k, v) in header_obj {
-                        // Copy over keys. 
+                        // Copy over keys.
                         let mut key = String::from(k);
                         if sample_obj.contains_key(k) {
                             key = format!("{}_{}", key.to_owned(), "from_header");
-                        } 
-                            sample_obj.insert(String::from(key), v.clone());
-                        
+                        }
+                        sample_obj.insert(String::from(key), v.clone());
                     }
-                },
+                }
                 _ => {}
             }
-        },
+        }
         _ => {}
     }
 }
 
 fn save_sample(mut sample: Value, headers: Value, _data: &mut HashMap<String, Vec<Value>>) {
-    merge_headers(& mut sample, &headers);
+    merge_headers(&mut sample, &headers);
     match sample {
         Value::Object(sample_obj) => {
-            for (k,v) in sample_obj {
+            for (k, v) in sample_obj {
                 match _data.get_mut(&k) {
                     Some(vec_for_k) => {
                         vec_for_k.push(v);
-                    },
+                    }
                     _ => {
                         _data.insert(k, vec![v]);
                     }
                 }
             }
-        },
-        _ => ()
+        }
+        _ => (),
     }
 }
 
-
-pub fn deep_write(schema: Schema, value: &Value, current_path: Vec<String>, headers: Value, _data: &mut HashMap<String, Vec<Value>>) {
-
+pub fn deep_write(
+    schema: Schema,
+    value: &Value,
+    current_path: Vec<String>,
+    headers: Value,
+    _data: &mut HashMap<String, Vec<Value>>,
+) {
     match value {
         Value::Object(map) => {
             if map.values().len() == 0 {
                 let sample = Sample::default();
                 let sample = sample.with_path(current_path.clone());
-                
                 save_sample(sample.to_value(), headers.clone(), _data);
             }
             for (k, v) in map {
@@ -224,7 +214,6 @@ pub fn deep_write(schema: Schema, value: &Value, current_path: Vec<String>, head
                 let mut new_path = current_path.clone();
                 new_path.push(i.to_string().to_owned());
                 deep_write(schema.clone(), v, new_path, headers.clone(), _data)
-           
             }
         }
         Value::Number(number) => {
@@ -246,7 +235,7 @@ pub fn deep_write(schema: Schema, value: &Value, current_path: Vec<String>, head
             let sample = Sample::default()
                 .with_path(current_path)
                 .with_vstr(Some(String::from(string)));
-                save_sample(sample.to_value(), headers.clone(), _data);
+            save_sample(sample.to_value(), headers.clone(), _data);
 
             return ();
         }
@@ -260,20 +249,17 @@ pub fn deep_write(schema: Schema, value: &Value, current_path: Vec<String>, head
             let sample = Sample::default()
                 .with_path(current_path)
                 .with_vbool(Some(v));
-                save_sample(sample.to_value(), headers.clone(), _data);
+            save_sample(sample.to_value(), headers.clone(), _data);
             return ();
         }
-        _ => ()
+        _ => (),
     }
 }
 
-
-fn write_to_file(loc: &str,  message_type: Schema, mut _data: HashMap<String, Vec<Value>>) {
-
+fn write_to_file(loc: &str, message_type: Schema, mut _data: HashMap<String, Vec<Value>>) {
     let path = Path::new(loc);
 
     // Generate Schema
-
 
     let schema = std::sync::Arc::new(parse_message_type(message_type.schema.as_str()).unwrap());
     let props = std::sync::Arc::new(WriterProperties::builder().build());
@@ -283,35 +269,53 @@ fn write_to_file(loc: &str,  message_type: Schema, mut _data: HashMap<String, Ve
 
     let mut row_id = 0;
 
+
+
     while let Some(mut col_writer) = row_group_writer.next_column().unwrap() {
         // ... write values to a column writer
+        
+        let col = &message_type.cols[row_id];
+
+        let data: Vec<Value> = match _data.get(col) {
+            Some(d) => d.to_vec(),
+            None => vec![]
+        };
+
+        
         match col_writer {
-            parquet::column::writer::ColumnWriter::Int32ColumnWriter(ref mut typed_writer) => {
-                typed_writer.write_batch(&[1], None, None).unwrap();
-            },
             parquet::column::writer::ColumnWriter::Int64ColumnWriter(ref mut _tw) => {
+                let slice = gen_int64_slice(data);
+                _tw.write_batch(&slice, None, None).unwrap();
+            }
 
-            },
-            parquet::column::writer::ColumnWriter::Int96ColumnWriter(ref mut _tw) => {
-
-            },
-            parquet::column::writer::ColumnWriter::FloatColumnWriter(ref mut _tw) => {
-
-            },
             parquet::column::writer::ColumnWriter::DoubleColumnWriter(ref mut _tw) => {
+                let slice = gen_f64_slice(data);
+                _tw.write_batch(&slice, None, None).unwrap();
+            }
+            parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(ref mut _tw) => {
+                let is_str = data[0].clone().is_string();
+                if is_str { 
+                    let buf: Vec<parquet::data_type::ByteArray> = data.into_iter().map(|x: Value| {
+                            let s = x.as_str().unwrap_or_default();
+                            let b: &[u8] = s.as_bytes();
+                            parquet::data_type::ByteArray::from(b.to_vec())
+                    }).collect();
 
-            },
-            parquet::column::writer::ColumnWriter::ByteArrayColumnWriter(ref mut _typed_writer) => {
-                println!("BYTE ARRAY");
-                let buf: Vec<u8> = String::from("hi").as_bytes().to_vec();
-                _typed_writer.write_batch(&[parquet::data_type::ByteArray::from(buf)], None, None).unwrap();
-            },
-            parquet::column::writer::ColumnWriter::FixedLenByteArrayColumnWriter(ref mut _typed_writer) => {
-                println!("FIXED BYTE ARRAY");
-            },
-            parquet::column::writer::ColumnWriter::BoolColumnWriter(ref mut _tw ) => {},
+                    _tw
+                    .write_batch(&buf[..], None, None)
+                    .unwrap();
+              
+                } else {
+
+                }
+            }
+            parquet::column::writer::ColumnWriter::BoolColumnWriter(ref mut _tw) => {
+                let slice = gen_bool_slice(data);
+                _tw.write_batch(&slice, None, None).unwrap();
+
             
-            
+            }
+            _ => {}
         }
         println!("COL IS {}", message_type.cols[row_id]);
 
@@ -321,13 +325,14 @@ fn write_to_file(loc: &str,  message_type: Schema, mut _data: HashMap<String, Ve
     }
 }
 
-
-fn pq_eat(data: &str, 
+fn pq_eat(
+    data: &str,
     target_json_path: Option<String>,
     is_str_json: Option<bool>,
     is_records: Option<bool>,
-    header_paths: Option<HashMap<String, String>>, loc: Option<&str>) {
-
+    header_paths: Option<HashMap<String, String>>,
+    loc: Option<&str>,
+) {
     let current_path = vec![];
     let value: Value = serde_json::from_str(data).expect("error");
     let is_records: bool = match is_records {
@@ -342,37 +347,44 @@ fn pq_eat(data: &str,
     merge_headers(&mut sample_obj, &headers);
     let sample_schema = Schema::from_value(sample_obj);
 
-
-match target_json_path {
+    match target_json_path {
         None => {
             if is_records && value.is_array() {
                 // Make sure value is an array
                 for (_i, v) in value.as_array().unwrap().iter().enumerate() {
-                    
                     let headers = generate_headers(&v, header_paths.clone());
                     let current_path = vec![String::from("$root")];
-                  
                     deep_write(sample_schema.clone(), v, current_path, headers, &mut _data);
-                
                 }
                 // Iterate through
             }
 
-            deep_write(sample_schema.clone(), &value, current_path, headers, &mut _data);
+            deep_write(
+                sample_schema.clone(),
+                &value,
+                current_path,
+                headers,
+                &mut _data,
+            );
         }
         Some(path) => {
             if is_records && value.is_array() {
                 // Make sure value is an array
 
                 for (_i, v) in value.as_array().unwrap().iter().enumerate() {
-                    
                     let headers = generate_headers(&v, header_paths.clone());
                     let target_value = v.pointer(path.as_str());
                     match target_value {
                         Some(target_value) => {
                             let current_path = vec![String::from("$root")];
 
-                             deep_write(sample_schema.clone(), &target_value, current_path, headers, &mut _data);
+                            deep_write(
+                                sample_schema.clone(),
+                                &target_value,
+                                current_path,
+                                headers,
+                                &mut _data,
+                            );
                         }
                         None => {
                             println!("No path found for[{}] {:?}", _i, path.as_str());
@@ -386,8 +398,13 @@ match target_json_path {
 
                 match is_str_json {
                     None => {
-                        
-                        deep_write(sample_schema.clone(), &target_value, current_path, headers, &mut _data);
+                        deep_write(
+                            sample_schema.clone(),
+                            &target_value,
+                            current_path,
+                            headers,
+                            &mut _data,
+                        );
                     }
                     Some(is_str_json) => {
                         // If true we have to reparse this string
@@ -395,11 +412,21 @@ match target_json_path {
                             let v = serde_json::from_str(target_value.as_str().unwrap())
                                 .expect("Invalid json_pointer target is not a json string");
 
-                            
-                                deep_write(sample_schema.clone(), &v, current_path, headers, &mut _data);
+                            deep_write(
+                                sample_schema.clone(),
+                                &v,
+                                current_path,
+                                headers,
+                                &mut _data,
+                            );
                         } else {
-                            
-                            deep_write(sample_schema.clone(), &target_value, current_path, headers, &mut _data);
+                            deep_write(
+                                sample_schema.clone(),
+                                &target_value,
+                                current_path,
+                                headers,
+                                &mut _data,
+                            );
                         }
                     }
                 }
@@ -407,15 +434,10 @@ match target_json_path {
         }
     }
 
-
-
     let loc: &str = match loc {
         Some(l) => l,
-        None => "./out.pq"
+        None => "./out.pq",
     };
 
-
-
     write_to_file(loc, sample_schema, _data);
-
 }
