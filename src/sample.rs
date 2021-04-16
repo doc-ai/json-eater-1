@@ -29,6 +29,16 @@ impl Sample {
         }
     }
 
+    pub fn sample() -> Value {
+        Sample::default()
+        .with_vbool(Some(true))
+        .with_vfloat(Some(0.0))
+        .with_vint(Some(0))
+        .with_vstr(Some(String::default()))
+        .with_vuint(Some(0))
+        .to_value()
+    }
+
     pub fn default() -> Self {
         Sample::new()
     }
