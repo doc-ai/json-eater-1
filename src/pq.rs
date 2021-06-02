@@ -347,7 +347,7 @@ pub fn write_to_file(loc: &str, message_type: Schema, mut _data: HashMap<String,
 
     // Generate Schema
     let schema = std::sync::Arc::new(parse_message_type(message_type.schema.as_str()).unwrap());
-    let props = std::sync::Arc::new(WriterProperties::builder().build());
+    let props = std::sync::Arc::new(WriterProperties::builder().set_dictionary_enabled(false).build());
     let file = fs::File::create(&path).unwrap();
     let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
     let mut row_group_writer = writer.next_row_group().unwrap();
