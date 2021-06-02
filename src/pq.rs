@@ -96,6 +96,7 @@ impl Schema {
             cols_map,
         }
     }
+    #[allow(dead_code)]
     pub fn from_value(value: Value) -> Self {
         let mut schema: String = String::from("message schema {");
         let mut cols_map: HashMap<String, usize> = HashMap::new();
@@ -326,15 +327,15 @@ pub fn deep_write(
             return ();
         }
         Value::Bool(boolean) => {
-            let mut v: bool = false;
+            let mut v: &str = "false";
 
             if *boolean {
-                v = true;
+                v = "true";
             }
 
             let sample = Sample::default()
                 .with_path(current_path)
-                .with_vbool(Some(v));
+                .with_vstr(Some(v.to_string()));
             save_sample(sample.to_value(), headers.clone(), _data, _types);
             return ();
         }
@@ -396,6 +397,7 @@ pub fn write_to_file(loc: &str, message_type: Schema, mut _data: HashMap<String,
             }
             parquet::column::writer::ColumnWriter::BoolColumnWriter(ref mut _tw) => {
                 let slice = gen_bool_slice(data);
+               
                 _tw.write_batch(&slice, Some(def_levels), Some(rep_levels))
                     .unwrap();
             }
