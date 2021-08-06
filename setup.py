@@ -5,8 +5,8 @@ from setuptools_rust import RustExtension
 setup(
     name="json-eater",
     version="0.0.2",
-    author="Kartik Thakore",
-    author_email="kartik.thakore@sharecare.com",
+    author="Kartik Thakore, Jeffrey Kim",
+    author_email="kartik.thakore@sharecare.com, jeffrey.kim@sharecare.com",
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Development Status :: 3 - Alpha",
